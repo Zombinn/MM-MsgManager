@@ -11,7 +11,7 @@ import shutil
 import pythoncom
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Query
 
 from pywxdump import all_merge_real_time_db, get_wx_db
 from pywxdump import get_wx_info, batch_decrypt, BiasAddr, merge_db, decrypt_merge
@@ -249,6 +249,13 @@ class BiasAddrRequest(BaseModel):
     wxdbPath: str = ""
 
 
+class DecryptRequest(BaseModel):
+    """与前端 DecryptView POST JSON 一致：wxdbPath / key / outPath"""
+    key: str
+    wxdbPath: str
+    outPath: str = ""
+
+
 @ls_api.post('/biasaddr')
 @error9999
 def get_biasaddr(request: BiasAddrRequest):
@@ -268,16 +275,32 @@ def get_biasaddr(request: BiasAddrRequest):
     return ReJson(0, str(rdata))
 
 
-@ls_api.api_route('/decrypt', methods=["GET", 'POST'])
+@ls_api.post('/decrypt')
 @error9999
-def get_decrypt(key: str, wxdbPath: str, outPath: str = ""):
-    """
-    解密
-    :return:
-    """
+def post_decrypt(request: DecryptRequest):
+    """前端使用 POST + JSON Body，勿用 query。"""
+    key = request.key.strip().strip("'").strip('"') if request.key else ""
+    wxdb_path = request.wxdbPath.strip().strip("'").strip('"') if request.wxdbPath else ""
+    out_path = request.outPath.strip().strip("'").strip('"') if request.outPath else ""
+    if not out_path:
+        out_path = gc.work_path
+    wxinfos = batch_decrypt(key, wxdb_path, out_path=out_path)
+    return ReJson(0, str(wxinfos))
+
+
+@ls_api.get('/decrypt')
+@error9999
+def get_decrypt(
+        key: str = Query(...),
+        wxdbPath: str = Query(...),
+        outPath: str = Query(""),
+):
+    """兼容命令行 / 浏览器 query 方式调用。"""
     if not outPath:
-        outPath = gc.work_path
-    wxinfos = batch_decrypt(key, wxdbPath, out_path=outPath)
+        out_path = gc.work_path
+    else:
+        out_path = outPath
+    wxinfos = batch_decrypt(key, wxdbPath, out_path=out_path)
     return ReJson(0, str(wxinfos))
 
 

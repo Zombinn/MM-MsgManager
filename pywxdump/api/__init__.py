@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request, Path, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import RedirectResponse, FileResponse
+from starlette.responses import RedirectResponse, FileResponse, JSONResponse
 
 from .utils import gc, is_port_in_use, server_loger
 from .rjson import ReJson
@@ -62,8 +62,8 @@ def gen_fastapi_app(handler, origins=None):
     # 错误处理
     @app.exception_handler(RequestValidationError)
     async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-        # print(request.body)
-        return ReJson(1002, {"detail": exc.errors()})
+        # ReJson 为 dict，须包成 JSONResponse，否则 ASGI 会报 'dict' object is not callable
+        return JSONResponse(status_code=200, content=ReJson(1002, {"detail": exc.errors()}))
 
     # 首页
     @app.get("/")

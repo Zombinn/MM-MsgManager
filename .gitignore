@@ -4,6 +4,9 @@ build/
 __pycache__/
 decrypted/
 pywxdump.egg-info/
+.venv/
+wxdump_work/
+scripts/_probe*.py
 
 # 忽略.idea目录
 .idea/
