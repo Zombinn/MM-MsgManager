@@ -123,6 +123,26 @@ def create_app():
             "wx_path": acct.wx_path,
         }
 
+    @app.get("/api/accounts")
+    def accounts():
+        try:
+            accts = pipeline.list_wx_accounts()
+        except Exception as e:  # noqa: BLE001 - 扫描依赖 pywin32/微信进程，失败原因多样
+            return JSONResponse({"error": str(e)})
+        return {"accounts": [
+            {"index": i, "wxid": a["wxid"], "nickname": a.get("nickname") or ""}
+            for i, a in enumerate(accts)
+        ]}
+
+    @app.post("/api/init")
+    def api_init(index: int = Body(None, embed=True)):
+        def task():
+            pipeline.init_account(index=index)
+
+        job_id = _new_job()
+        _run_async(job_id, task)
+        return {"job_id": job_id}
+
     def _start_job(prep):
         """执行同步准备逻辑（可能抛 SystemExit/ValueError），成功后起后台任务。
 
@@ -285,6 +305,17 @@ _HTML = """<!doctype html>
 <header><h1>wxtools 控制台</h1><span class=\"badge\" id=\"acct\">加载中…</span></header>
 <main>
  <div class=\"card\">
+  <h2>⓪ 初始化账号（首次使用 / 重新扫描）</h2>
+  <div class=\"row\">
+   <button onclick=\"scanAccounts()\">扫描已登录账号</button>
+   <select id=\"init_pick\" style=\"display:none;min-width:220px\"></select>
+   <button id=\"init_btn\" class=\"sec\" style=\"display:none\" onclick=\"doInit()\">初始化选中账号</button>
+  </div>
+  <p id=\"init_hint\" style=\"color:var(--mut);font-size:12px;margin:10px 0 0\">
+   需要微信 PC 版已登录且未被最小化到无法读取内存的状态。首次使用或想切换/刷新密钥时点「扫描」。
+  </p>
+ </div>
+ <div class=\"card\">
   <h2>账号状态</h2>
   <div class=\"grid2\" id=\"status\"><span class=\"k\">读取中</span><span>…</span></div>
  </div>
@@ -330,10 +361,26 @@ _HTML = """<!doctype html>
 const $=id=>document.getElementById(id);
 const v=id=>$(id).value.trim();
 let timer=null;
+async function scanAccounts(){
+ $('init_hint').textContent='扫描中…';
+ try{
+  const r=await fetch('/api/accounts');const d=await r.json();
+  if(d.error){$('init_hint').textContent='扫描失败: '+d.error;return;}
+  if(!d.accounts||d.accounts.length===0){$('init_hint').textContent='未扫描到已登录的微信账号（请确认微信 PC 版已登录）';return;}
+  const sel=$('init_pick');sel.innerHTML='';
+  d.accounts.forEach(a=>{const o=document.createElement('option');o.value=a.index;o.textContent=(a.nickname||'(未知昵称)')+' / '+a.wxid;sel.appendChild(o);});
+  sel.style.display='';$('init_btn').style.display='';
+  $('init_hint').textContent='找到 '+d.accounts.length+' 个账号，选择后点「初始化选中账号」（会解密并合并数据库，首次可能耗时较久）';
+ }catch(e){$('init_hint').textContent='请求失败: '+e;}
+}
+function doInit(){
+ const idx=parseInt($('init_pick').value,10);
+ run('init',{index:idx});
+}
 async function loadStatus(){
  try{
   const r=await fetch('/api/status');const d=await r.json();
-  if(!d.ok){$('acct').textContent='未初始化';$('status').innerHTML='<span class=\"k\">提示</span><span>请先运行 wxdump ui 初始化账号</span>';return;}
+  if(!d.ok){$('acct').textContent='未初始化';$('status').innerHTML='<span class=\"k\">提示</span><span>请先用上方「⓪ 初始化账号」扫描并初始化</span>';return;}
   $('acct').textContent=d.my_wxid;
   $('status').innerHTML=
    `<span class=\"k\">当前账号</span><span>${d.my_wxid}</span>`+

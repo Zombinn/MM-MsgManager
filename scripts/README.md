@@ -36,6 +36,8 @@ python -m wxtools <子命令> [参数]
 
 ## 新增能力（原脚本没有）
 
+- `wxtools init` / `wxtools accounts` —— 首次初始化账号（扫描微信/解密/生成 `merge_all.db`），
+  不再需要 `wxdump ui` 那个没有打包前端的网页。
 - `wxtools realtime` —— 微信开着也能合并最新消息，无需退出微信（读取运行中进程数据，仅 64 位 Windows）。
   `refresh` 默认会先尝试这一步（失败不影响后续常规合并），可用 `--no-realtime` 跳过。
 - `refresh`/`wxtools ui` 导出 CSV 后会打印该会话本地最新消息时间，方便和手机上看到的对比，

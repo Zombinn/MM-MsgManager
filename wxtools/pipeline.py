@@ -8,15 +8,102 @@ from __future__ import annotations
 import contextlib
 import csv
 import io
+import json
 import os
+import random
 import shutil
+import string
 from datetime import datetime
 from pathlib import Path
 
-from .context import WORK_PATH, Account
+from .context import AUTO_SETTING, CONF_PATH, WORK_PATH, Account, load_account
 
 # 标准导出 CSV 表头
 CSV_HEADER = ["id", "MsgSvrID", "type_name", "is_sender", "talker", "room_name", "msg", "src", "CreateTime"]
+
+
+# ------------------------- 首次初始化（无需网页前端） ------------------------- #
+
+def list_wx_accounts() -> list[dict]:
+    """扫描当前登录的微信进程，返回可用账号信息（wxid/key/wx_dir 等）。
+
+    需要微信 PC 版正在运行且已登录；版本不受 WX_OFFS.json 支持时 key/wxid
+    可能为空，这类账号会被过滤掉。
+    """
+    import pythoncom
+    from pywxdump import WX_OFFS, get_wx_info
+
+    pythoncom.CoInitialize()
+    try:
+        wxinfos = get_wx_info(WX_OFFS)
+    finally:
+        pythoncom.CoUninitialize()
+    return [i for i in wxinfos if i.get("wxid") and i.get("key") and i.get("wx_dir")]
+
+
+def init_account(index: int | None = None) -> Account:
+    """初始化账号：扫描 -> 解密合并 -> 写入 conf_auto.json，替代网页初始化流程。
+
+    :param index: 多账号同时登录时选择第几个（0-based）；只有一个账号时可不传。
+    """
+    from pywxdump import decrypt_merge
+
+    accounts = list_wx_accounts()
+    if not accounts:
+        raise SystemExit(
+            "[-] 未扫描到可用的微信账号。请确认：微信 PC 版已登录且未被最小化到"
+            "无法读取内存的状态；当前微信版本是否在 pywxdump/WX_OFFS.json 中受支持。"
+        )
+    if len(accounts) > 1 and index is None:
+        lines = "\n".join(
+            f"  [{i}] {a.get('nickname') or '(未知昵称)'} / {a['wxid']}"
+            for i, a in enumerate(accounts)
+        )
+        raise SystemExit(f"[-] 检测到多个已登录账号，请用 --index 指定其中一个：\n{lines}")
+    picked = accounts[index or 0]
+    wxid, key, wx_dir = picked["wxid"], picked["key"], picked["wx_dir"]
+    print(f"[*] 初始化账号: {picked.get('nickname') or wxid} / {wxid}")
+
+    out_path = WORK_PATH / "decrypted" / wxid
+    if out_path.exists():
+        shutil.rmtree(out_path, ignore_errors=True)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    print("[*] 解密并合并数据库（首次可能耗时较久）...")
+    ok, merge_save_path = decrypt_merge(wx_path=wx_dir, key=key, outpath=str(out_path))
+    if not ok:
+        shutil.rmtree(out_path, ignore_errors=True)
+        raise SystemExit(f"[-] 解密合并失败: {merge_save_path}")
+
+    # 先把生成的 merge_*.db 移出 out_path，再清理临时目录——顺序不能反，
+    # 否则会把刚生成、还没搬走的文件一起删掉。
+    final_dir = WORK_PATH / wxid
+    final_dir.mkdir(parents=True, exist_ok=True)
+    merge_path = str(final_dir / "merge_all.db")
+    shutil.move(merge_save_path, merge_path)
+    shutil.rmtree(out_path, ignore_errors=True)
+
+    conf = {}
+    if CONF_PATH.is_file():
+        with open(CONF_PATH, encoding="utf-8") as f:
+            conf = json.load(f)
+    conf.setdefault(AUTO_SETTING, {})["last"] = wxid
+    conf[wxid] = {
+        "key": key,
+        "wx_path": wx_dir,
+        "merge_path": merge_path,
+        "my_wxid": wxid,
+        "db_config": {
+            "key": "".join(random.choices(string.ascii_letters + string.digits, k=16)),
+            "type": "sqlite", "path": merge_path,
+        },
+    }
+    WORK_PATH.mkdir(parents=True, exist_ok=True)
+    with open(CONF_PATH, "w", encoding="utf-8") as f:
+        json.dump(conf, f, ensure_ascii=False, indent=2)
+
+    print(f"[+] 完成，merge_all.db -> {merge_path}")
+    return load_account()
 
 
 # ------------------------- 实时合并（微信开着也能用） ------------------------- #

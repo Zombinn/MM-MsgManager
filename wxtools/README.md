@@ -4,8 +4,8 @@
 + 一个开箱即用的本地网页控制台，专门覆盖"合并最新聊天记录 → 导出 CSV → 筛语音 →
 拼接/处理音视频"这条链路。
 
-> 微信账号信息的**首次采集**（扫描微信、拿到解密密钥、生成 `merge_all.db`）不属于
-> `wxtools`，仍然用上游 `pywxdump` 自带的 `wxdump` 命令完成，见下文「① 首次初始化」。
+> 首次使用需要先初始化账号（扫描微信、拿到解密密钥、生成 `merge_all.db`），
+> 见下文「1. 首次初始化」。
 
 ---
 
@@ -32,20 +32,28 @@ python -m wxtools ui
 
 ---
 
-## 1. 首次初始化（一次性，仍用 `wxdump`）
+## 1. 首次初始化
 
 ```powershell
-wxdump ui
+wxtools init          # 命令行：扫描当前登录的微信账号并初始化
+wxtools accounts      # 只列出扫描到的账号，不初始化
 ```
 
-浏览器打开 `http://127.0.0.1:5000/`，按提示走完初始化（选中当前登录的微信账号 →
-自动获取密钥 → 解密并生成 `merge_all.db`）。完成后账号信息会写进
-`wxdump_work/conf_auto.json`，后续所有 `wxtools` 命令都从这个文件读取账号。
+或者在 `wxtools ui` 网页控制台里，最上面「⓪ 初始化账号」卡片点「扫描已登录账号」→
+选中账号 →「初始化选中账号」。
 
-> 这一步会打开原版 PyWxDump 的网页聊天查看器界面（`/s/index.html`）。如果这个仓库
-> 没有单独构建过前端静态文件，打开会显示 404——这是正常的，不影响初始化流程本身
-> （初始化走的是后端 API，不依赖那个前端页面）。日常查看和操作请用下面的
-> `wxtools ui`。
+这一步会：扫描当前登录的微信 PC 进程 → 读取 wxid/密钥 → 解密并合并数据库生成
+`merge_all.db`。完成后账号信息写进 `wxdump_work/conf_auto.json`，后续所有
+`wxtools` 命令（以及 `wxdump` 命令）都从这个文件读取账号。
+
+多个微信账号同时登录时，`wxtools init` 会列出所有账号让你用 `--index` 指定：
+```powershell
+wxtools init --index 1
+```
+
+> 上游 `wxdump ui` 命令依然存在，但它打开的网页聊天查看器（`/s/index.html`）在这个
+> 仓库里没有对应的前端静态文件，会显示 404——所以初始化和日常查看都改用上面的
+> `wxtools init` / `wxtools ui`，不再需要 `wxdump ui` 这一步。
 
 ---
 
@@ -194,10 +202,11 @@ wxtools timbre -a1 A.wav -a2 B.wav -o compare.png --json-out compare.json
 
 | 现象 | 原因 / 处理 |
 |---|---|
-| `conf_auto.json` 找不到 | 还没做过「① 首次初始化」，先跑 `wxdump ui` |
+| `conf_auto.json` 找不到 | 还没做过「1. 首次初始化」，先跑 `wxtools init` |
+| `wxtools init` 提示未扫描到账号 | 微信 PC 版需要已登录、且进程未被系统挂起/最小化到读不到内存的状态；当前微信版本需要在 `pywxdump/WX_OFFS.json` 中受支持 |
 | `refresh --merge-only` 报错要联系人 | 已修复：合并操作本身不需要联系人，只有导出才需要 |
 | `wxtools ui` 网页打不开 / 端口占用 | `wxtools ui -p 5002` 换个端口 |
-| `wxdump ui` 里 `/s/index.html` 显示 404 | 正常现象，原版网页前端没有打包进这个仓库；初始化本身不受影响，日常用 `wxtools ui` 即可 |
+| `wxdump ui` 里 `/s/index.html` 显示 404 | 正常现象，原版网页前端没有打包进这个仓库；初始化和日常操作都改用 `wxtools init` / `wxtools ui`，不依赖这个页面 |
 | 装依赖后 TensorFlow/onnx 报 protobuf 冲突 | 说明装进了系统全局 Python；改用本仓库的 `.venv` 隔离安装（见「0. 安装」） |
 | `realtime` 一直失败 | 仅支持 64 位 Windows；失败不影响 `refresh` 后续正常合并，可用 `--no-realtime` 跳过 |
 

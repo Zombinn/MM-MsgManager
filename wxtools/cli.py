@@ -3,6 +3,8 @@
 
 一条命令覆盖原先 scripts/ 下 8 个脚本的能力：
 
+  python -m wxtools init                首次初始化账号（扫描微信/解密/生成 merge_all.db，无需网页前端）
+  python -m wxtools accounts            列出当前登录的微信账号
   python -m wxtools refresh            合并最新 MSG 分库并导出联系人 CSV（默认会先尝试实时合并）
   python -m wxtools wait-refresh       等微信退出后再 refresh（读取 WAL 中的新消息）
   python -m wxtools realtime           微信开着也能合并最新消息（无需退出，读取运行中进程数据）
@@ -20,6 +22,23 @@ from datetime import datetime
 from pathlib import Path
 
 from . import audio, context, media, pipeline, wechat
+
+
+# ------------------------- 首次初始化 ------------------------- #
+
+def _cmd_accounts(args) -> int:
+    accounts = pipeline.list_wx_accounts()
+    if not accounts:
+        print("[-] 未扫描到可用的微信账号（微信是否已登录？当前版本是否受支持？）")
+        return 1
+    for i, a in enumerate(accounts):
+        print(f"[{i}] {a.get('nickname') or '(未知昵称)'} / {a['wxid']}  wx_dir={a['wx_dir']}")
+    return 0
+
+
+def _cmd_init(args) -> int:
+    pipeline.init_account(index=args.index)
+    return 0
 
 
 # ------------------------- 微信数据管线 ------------------------- #
@@ -180,6 +199,13 @@ def _cmd_timbre(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wxtools", description="微信聊天数据 / 音视频工作流工具集")
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
+
+    p = sub.add_parser("accounts", help="列出当前登录的微信账号")
+    p.set_defaults(func=_cmd_accounts)
+
+    p = sub.add_parser("init", help="首次初始化账号（扫描/解密/生成 merge_all.db）")
+    p.add_argument("--index", type=int, default=None, help="多账号同时登录时选择第几个（0-based）")
+    p.set_defaults(func=_cmd_init)
 
     def add_refresh_args(p):
         p.add_argument("--peer-wxid", default=None, help="联系人 wxid（默认取 wxtools.json / 环境变量）")
