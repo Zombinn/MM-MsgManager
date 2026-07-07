@@ -77,11 +77,14 @@ def gen_fastapi_app(handler, origins=None):
     app.include_router(ls_api, prefix='/api/ls', tags=['本地api'])
 
     # 根据文件类型，设置mime_type，返回文件
+    web_root = os.path.abspath(web_path)
+
     @app.get("/s/{filename:path}")
     async def serve_file(filename: str):
-        # 构建完整的文件路径
-        file_path = os.path.join(web_path, filename)
-        file_path = os.path.abspath(file_path)
+        # 构建完整的文件路径，并确保解析后仍在 web_root 内（防止 ../ 路径穿越读取任意文件）
+        file_path = os.path.abspath(os.path.join(web_root, filename))
+        if os.path.commonpath([file_path, web_root]) != web_root:
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
 
         # 检查文件是否存在
         if os.path.isfile(file_path):
@@ -98,7 +101,7 @@ def gen_fastapi_app(handler, origins=None):
             return FileResponse(file_path, media_type=mime_type)
 
         # 如果文件不存在，返回 404
-        return {"detail": "Not Found"}, 404
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
 
     # 静态文件挂载
     # if os.path.exists(os.path.join(web_path, "index.html")):
