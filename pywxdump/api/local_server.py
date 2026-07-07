@@ -130,7 +130,6 @@ def init_key(request: InitKeyRequest):
             "path": merge_save_path_new
         }
         gc.set_conf(my_wxid, "db_config", db_config)
-        gc.set_conf(my_wxid, "db_config", db_config)
         gc.set_conf(my_wxid, "merge_path", merge_save_path_new)
         gc.set_conf(my_wxid, "wx_path", wx_path)
         gc.set_conf(my_wxid, "key", key)
@@ -275,17 +274,21 @@ def get_biasaddr(request: BiasAddrRequest):
     return ReJson(0, str(rdata))
 
 
+def _decrypt(key: str, wxdb_path: str, out_path: str):
+    """解密数据库到指定目录（默认工作目录）；GET/POST 共用同一逻辑。"""
+    def clean(s: str) -> str:
+        return s.strip().strip("'").strip('"') if s else ""
+
+    key, wxdb_path = clean(key), clean(wxdb_path)
+    out_path = clean(out_path) or gc.work_path
+    return ReJson(0, str(batch_decrypt(key, wxdb_path, out_path=out_path)))
+
+
 @ls_api.post('/decrypt')
 @error9999
 def post_decrypt(request: DecryptRequest):
     """前端使用 POST + JSON Body，勿用 query。"""
-    key = request.key.strip().strip("'").strip('"') if request.key else ""
-    wxdb_path = request.wxdbPath.strip().strip("'").strip('"') if request.wxdbPath else ""
-    out_path = request.outPath.strip().strip("'").strip('"') if request.outPath else ""
-    if not out_path:
-        out_path = gc.work_path
-    wxinfos = batch_decrypt(key, wxdb_path, out_path=out_path)
-    return ReJson(0, str(wxinfos))
+    return _decrypt(request.key, request.wxdbPath, request.outPath)
 
 
 @ls_api.get('/decrypt')
@@ -296,12 +299,7 @@ def get_decrypt(
         outPath: str = Query(""),
 ):
     """兼容命令行 / 浏览器 query 方式调用。"""
-    if not outPath:
-        out_path = gc.work_path
-    else:
-        out_path = outPath
-    wxinfos = batch_decrypt(key, wxdbPath, out_path=out_path)
-    return ReJson(0, str(wxinfos))
+    return _decrypt(key, wxdbPath, outPath)
 
 
 class MergeRequest(BaseModel):

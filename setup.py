@@ -46,8 +46,9 @@ setup(
 
     # packages=find_packages(exclude=[]),
     packages=['pywxdump', 'pywxdump.ui', 'pywxdump.wx_core', 'pywxdump.wx_core.utils', 'pywxdump.analyzer',
-              'pywxdump.api', 'pywxdump.api.export', 'pywxdump.db', 'pywxdump.db.utils'],
+              'pywxdump.api', 'pywxdump.api.export', 'pywxdump.db', 'pywxdump.db.utils', 'wxtools'],
     package_dir={'pywxdump': 'pywxdump',
+                 'wxtools': 'wxtools',
                  'pywxdump.wx_core': 'pywxdump/wx_core',
                  'pywxdump.wx_core.utils': 'pywxdump/wx_core/utils',
                  'pywxdump.analyzer': 'pywxdump/analyzer',
@@ -71,6 +72,7 @@ setup(
     entry_points={
         'console_scripts': [
             'wxdump = pywxdump.cli:console_run',
+            'wxtools = wxtools.cli:main',
         ],
     },
     setup_requires=['wheel']
