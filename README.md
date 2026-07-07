@@ -1,5 +1,9 @@
 [![中文](https://img.shields.io/badge/README-中文-494cad.svg)](https://github.com/xaoyaoo/PyWxDump/tree/master/doc/README_CN.md) [![English](https://img.shields.io/badge/README-English-494cad.svg)](https://github.com/xaoyaoo/PyWxDump/tree/master/doc/README_EN.md)
 
+> **本仓库（MM-MsgManager）在上游 PyWxDump 基础上增加了 [`wxtools`](wxtools/README.md) ——
+> 一条统一命令行 + 本地网页控制台，覆盖「合并最新聊天记录 → 导出 CSV → 筛语音 →
+> 拼接/处理音视频」这条个人工作流。详细使用指南见 [wxtools/README.md](wxtools/README.md)。**
+
 # <center>PyWxDump</center>
 
 [![Python](https://img.shields.io/badge/Python-3-blue.svg)](https://www.python.org/)
